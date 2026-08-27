@@ -147,6 +147,7 @@ export function LaunchWindow() {
 	const languageMenuPanelRef = useRef<HTMLDivElement | null>(null);
 	const hudBarRef = useRef<HTMLDivElement | null>(null);
 	const deviceSelectorRef = useRef<HTMLDivElement | null>(null);
+	const systemLocaleSuggestionRef = useRef<HTMLDivElement | null>(null);
 	// Measured bar height, anchors the popups above the tall vertical tray so they don't overlap it.
 	const [hudBarHeight, setHudBarHeight] = useState(0);
 	const [languageMenuStyle, setLanguageMenuStyle] = useState<{
@@ -348,6 +349,24 @@ export function LaunchWindow() {
 			halfWidth = Math.max(halfWidth, centerX - rect.left, rect.right - centerX);
 		}
 
+		if (systemLocaleSuggestionRef.current) {
+			const el = systemLocaleSuggestionRef.current;
+			const rect = el.getBoundingClientRect();
+			const elHeight = el.offsetHeight || rect.height;
+			const elWidth = el.offsetWidth || rect.width;
+			if (elHeight !== 0 || elWidth !== 0) {
+				const hasDevices = Boolean(deviceSelectorRef.current);
+				const suggestionBottomOffset =
+					trayLayout === "vertical"
+						? barEl.scrollHeight + HUD_DEVICE_POPUP_GAP + (hasDevices ? 46 : 0)
+						: hasDevices
+							? HUD_DEVICE_POPUP_HORIZONTAL_BOTTOM + 46
+							: HUD_DEVICE_POPUP_HORIZONTAL_BOTTOM;
+				topFromBottom = Math.max(topFromBottom, suggestionBottomOffset + elHeight);
+				halfWidth = Math.max(halfWidth, elWidth / 2);
+			}
+		}
+
 		setHudBarHeight((prev) => {
 			const next = Math.round(barEl.scrollHeight);
 			return Math.abs(prev - next) > 1 ? next : prev;
@@ -370,6 +389,7 @@ export function LaunchWindow() {
 		hudResizeObserverRef.current = observer;
 		if (hudBarRef.current) observer.observe(hudBarRef.current);
 		if (deviceSelectorRef.current) observer.observe(deviceSelectorRef.current);
+		if (systemLocaleSuggestionRef.current) observer.observe(systemLocaleSuggestionRef.current);
 		measureHudSize();
 		return () => {
 			observer.disconnect();
@@ -397,6 +417,10 @@ export function LaunchWindow() {
 	);
 	const setLanguageMenuPanelEl = useCallback(
 		(el: HTMLDivElement | null) => observeHudElement(el, languageMenuPanelRef),
+		[observeHudElement],
+	);
+	const setSystemLocaleSuggestionEl = useCallback(
+		(el: HTMLDivElement | null) => observeHudElement(el, systemLocaleSuggestionRef),
 		[observeHudElement],
 	);
 
@@ -499,6 +523,14 @@ export function LaunchWindow() {
 		setHudMouseEventsEnabled(false);
 	};
 
+	const hasDeviceControls = showMicControls || showWebcamControls;
+	const suggestionBottom =
+		trayLayout === "vertical"
+			? hudBarHeight + HUD_DEVICE_POPUP_GAP + (hasDeviceControls ? 46 : 0)
+			: hasDeviceControls
+				? HUD_DEVICE_POPUP_HORIZONTAL_BOTTOM + 46
+				: HUD_DEVICE_POPUP_HORIZONTAL_BOTTOM;
+
 	return (
 		// Avoid w-screen/h-screen: 100vw can exceed the inner layout width when scrollbars
 		// affect the viewport (Windows), causing a horizontal scrollbar (issue #305).
@@ -518,8 +550,17 @@ export function LaunchWindow() {
 		>
 			{systemLocaleSuggestion && (
 				<div
+					ref={setSystemLocaleSuggestionEl}
 					data-hud-interactive="true"
-					className={`fixed top-8 left-1/2 z-30 w-[calc(100vw-1rem)] max-w-[520px] -translate-x-1/2 rounded-xl border border-white/15 bg-[rgba(20,20,28,0.95)] p-3 shadow-2xl backdrop-blur-xl text-white animate-in fade-in-0 zoom-in-95 duration-200 ${styles.electronNoDrag}`}
+					style={{ bottom: suggestionBottom }}
+					className={`fixed left-1/2 z-30 w-[480px] -translate-x-1/2 rounded-xl border border-white/15 bg-[rgba(20,20,28,0.95)] p-3 shadow-2xl backdrop-blur-xl text-white animate-in fade-in-0 zoom-in-95 duration-200 ${styles.electronNoDrag}`}
+					onPointerEnter={() => setHudMouseEventsEnabled(true)}
+					onMouseEnter={() => setHudMouseEventsEnabled(true)}
+					onMouseLeave={() => {
+						if (!isLanguageMenuOpen) {
+							setHudMouseEventsEnabled(false);
+						}
+					}}
 				>
 					<div className="text-[13px] font-semibold text-white">
 						{t("systemLanguagePrompt.title")}
