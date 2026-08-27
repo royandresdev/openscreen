@@ -40,8 +40,55 @@ ipcMain.on("hud-overlay-move-by", (_event, deltaX: number, deltaY: number) => {
 		return;
 	}
 
-	const [x, y] = hudOverlayWindow.getPosition();
-	hudOverlayWindow.setPosition(Math.round(x + deltaX), Math.round(y + deltaY), false);
+	const roundDeltaX = Math.round(deltaX);
+	const roundDeltaY = Math.round(deltaY);
+	if (roundDeltaX === 0 && roundDeltaY === 0) {
+		return;
+	}
+
+	const bounds = hudOverlayWindow.getBounds();
+	hudOverlayWindow.setBounds({
+		x: bounds.x + roundDeltaX,
+		y: bounds.y + roundDeltaY,
+		width: bounds.width,
+		height: bounds.height,
+	});
+});
+
+let hudDragStartCursor: { x: number; y: number } | null = null;
+let hudDragStartBounds: Electron.Rectangle | null = null;
+
+ipcMain.on("hud-overlay-drag-start", () => {
+	if (!hudOverlayWindow || hudOverlayWindow.isDestroyed()) return;
+	hudDragStartCursor = screen.getCursorScreenPoint();
+	hudDragStartBounds = hudOverlayWindow.getBounds();
+});
+
+ipcMain.on("hud-overlay-drag-move", () => {
+	if (
+		!hudOverlayWindow ||
+		hudOverlayWindow.isDestroyed() ||
+		!hudDragStartCursor ||
+		!hudDragStartBounds
+	) {
+		return;
+	}
+
+	const currentCursor = screen.getCursorScreenPoint();
+	const nextX = Math.round(hudDragStartBounds.x + (currentCursor.x - hudDragStartCursor.x));
+	const nextY = Math.round(hudDragStartBounds.y + (currentCursor.y - hudDragStartCursor.y));
+
+	hudOverlayWindow.setBounds({
+		x: nextX,
+		y: nextY,
+		width: hudDragStartBounds.width,
+		height: hudDragStartBounds.height,
+	});
+});
+
+ipcMain.on("hud-overlay-drag-end", () => {
+	hudDragStartCursor = null;
+	hudDragStartBounds = null;
 });
 
 // Resize the HUD to fit its rendered content. Anchored by its bottom-centre so it
